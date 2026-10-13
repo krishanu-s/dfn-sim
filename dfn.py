@@ -6,8 +6,8 @@ from pip._vendor.certifi import where
 
 class DFNModel:
     """A two-dimensional discrete fracture network is a set of fractures within a bounded (rectangular) two-dimensional domain.
-    Each fracture is a line segment defined by its length, midpoint location, orientation, and aperture. Field studies indicate that
-    these values should be generated according to the following distributions:
+    Each fracture is a line segment defined by its length (a single scalar), midpoint location (a pair of coordinates), orientation (a float value),
+    and aperture (a float value). These values should be generated according to the following distributions:
         - Midpoints are chosen so that a global density criterion is met. A starting example is a Poisson point process, i.e. so that
         the number of fractures within a box of area V follows such a process with mean proportional to V.
         - Length L follows a power law distribution with probability density function ~ L^{-α-1}
@@ -16,10 +16,13 @@ class DFNModel:
         where I_0 is the modified Bessel function of zero order and k is a constant.
         - Aperture A can follow a log-normal distribution, or be power-law dependent on the length L.
 
-    Analysis is aimed at calculating fluid flow from the left boundary of the box to the right boundary, assuming a given pressure differential
-    between the two sides. This can be deduced from the higher-resolution question of solving a linear equation of the form Ah = b, where A
-    encodes the cluster behavior of the network, b is defined by connections to the boundaries, and h is a vector of length equal to the number
-    of nodes and gives the hydraulic head at all nodes.
+    The distributions according to which these values are generated can be modified further upon data from geological field studies.
+
+    Analysis of a DFN is essentially aimed at calculating total fluid flow from the left boundary of the box to the right boundary,
+    assuming a given pressure differential between the two sides. This can be deduced from the higher-information question of calculating
+    the hydraulic head at every node (fracture intersection) within the network, which in-turn comes from solving a linear equation of the
+    form Ah = b, where A encodes the cluster behavior of the network, b is defined by connections to the boundaries, and h is a vector of
+    length equal to the number of nodes and gives the hydraulic head at all nodes.
     """
 
     def __init__(
