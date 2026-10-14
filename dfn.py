@@ -18,20 +18,22 @@ def _cross(a: np.ndarray, b: np.ndarray):
 
 
 class DFNModel:
-    """A two-dimensional discrete fracture network is a set of fractures within a bounded (rectangular) two-dimensional domain.
-    Each fracture is a line segment defined by its length (a single scalar), midpoint location (a pair of coordinates), orientation (a float value),
-    and aperture (a float value). These values should be generated according to the following distributions:
-        - Midpoints are chosen so that a global density criterion is met. A starting example is a Poisson point process, i.e. so that
-        the number of fractures within a box of area V follows such a process with mean proportional to V.
-        - Length L follows a power law distribution with probability density function ~ L^{-α-1}
-        where 1 <= α <= 3.
+    """A two-dimensional discrete fracture network is a set of fractures (line segments) within a bounded (rectangular) two-dimensional domain.
+    Each fracture is defined by its length (a single scalar), midpoint location (a pair of coordinates), orientation (a float value in (0, π)),
+    and aperture (a single float value in this case).
+
+    A DFN is generated stochastically as follows:
+        - Midpoints are chosen so that a global density criterion is met. The one used here is a Poisson point process,
+        i.e. so that the number of fractures within a box of area V follows a Poisson distribution with mean proportional to V.
+        - Length L follows a power law distribution with probability density function ~ L^{-α-1} where 1 <= α <= 3.
         - Orientation θ clusters around a mean orientation μ, with probability density function ~ exp(k * cos(θ - μ))/(2πI_0(k))
         where I_0 is the modified Bessel function of zero order and k is a constant.
-        - Aperture A can follow a log-normal distribution, or be power-law dependent on the length L.
+        - Aperture A can follow a log-normal distribution, or can follow a power-law dependent on the length L.
 
-    The distributions according to which these values are generated can be modified further upon data from geological field studies.
+    (The distributions according to which these values are generated can be modified further based upon data from geological field studies
+    in order to better model real life situations.)
 
-    Analysis of a DFN is essentially aimed at calculating total fluid flow from the left boundary of the box to the right boundary,
+    Analysis of a DFN is essentially aimed at calculating the total fluid flow from the left boundary of the box to the right boundary,
     assuming a given pressure differential between the two sides. This can be deduced from the higher-information question of calculating
     the hydraulic head at every node (fracture intersection) within the network, which in-turn comes from solving a linear equation of the
     form Ah = b, where A encodes the cluster behavior of the network, b is defined by connections to the boundaries, and h is a vector of
@@ -40,6 +42,11 @@ class DFNModel:
     The left and right boundaries are held at fixed hydraulic heads; the top and bottom boundaries are impermeable (no flow). Fractures
     extending past the domain are truncated at its edges. Flow along each fracture segment between neighbouring nodes obeys the cubic law,
     Q = (ρ g a^3 / 12 μ) * Δh / ℓ per unit depth, and A, b express conservation of mass at every node.
+
+    One can think of the network as a weighted graph whose vertices correspond to the nodes (intersections) in the DFN, edges correspond to
+    the `pipes' (segments of fractures connecting nodes), and weights correspond to conductance (flow) values. In this formulation, A is the
+    adjacency matrix of the graph (considering edges which don't contact the left/right boundaries), while b contains the weights of edges
+    contacting the left/right boundaries.
     """
 
     def __init__(
@@ -62,7 +69,7 @@ class DFNModel:
         aperture_exponent: float = 0.5,
         fluid_density: float = 1000.0,  # Density of the fluid, ρ
         fluid_viscosity: float = 1e-3,  # Dynamic viscosity of the fluid, μ
-        gravity: float = 9.81,  # Gravitational acceleration, g
+        gravity: float = 9.8,  # Gravitational acceleration, g
         seed: int | None = None,  # Seed for the random number generator
     ):
         if width <= 0 or height <= 0:
@@ -256,7 +263,7 @@ class DFNModel:
             * self.apertures[f] ** 3
             / (12 * self.fluid_viscosity * length)
         )
-        self._pipes = (u, v, c)
+        self._pipes = (u, v, c)  # source index, sink index, conductance of the pipe
         start, end = self.endpoints[f, 0], self.endpoints[f, 1]
         self._pipe_segments = np.stack(  # Shape (pipes, 2, 2): pipe, start/end, x/y
             [
@@ -267,6 +274,7 @@ class DFNModel:
         )
 
         # Mass balance at node i: sum over pipes (i, j) of c_ij (h_i - h_j) = 0, with boundary heads moved to the right-hand side
+        # of the equation Ah = b.
         rows, cols, vals = [], [], []
         b = np.zeros(m)
         for a, z in ((u, v), (v, u)):
